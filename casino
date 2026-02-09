@@ -1,0 +1,90 @@
+import os
+import json
+import random
+from datetime import datetime
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+
+# ТВОЙ ТОКЕН ПРЯМО В КОДЕ
+TOKEN = "8215171014:AAG-oaPwDp8Mmjv0NdHK2tQUI1kCfYIi9n4"
+
+users_db = {}
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    uid = str(user.id)
+    
+    if uid not in users_db:
+        users_db[uid] = {"balance": 5000, "games": 0, "wins": 0, "name": user.first_name}
+    
+    text = f"""
+🎰 *КАЗИНО БОТ*
+
+Привет, {user.first_name}!
+Баланс: {users_db[uid]['balance']}₿
+Игр: {users_db[uid]['games']}
+
+Нажми кнопку играть!
+"""
+    
+    keyboard = [[InlineKeyboardButton("🎰 КРУТИТЬ (100₿)", callback_data="spin")]]
+    await update.message.reply_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def spin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = str(query.from_user.id)
+    
+    if user_id not in users_db:
+        users_db[user_id] = {"balance": 5000, "games": 0, "wins": 0}
+    
+    user = users_db[user_id]
+    
+    if user["balance"] < 100:
+        await query.message.edit_text("❌ Нужно 100₿! /start")
+        return
+    
+    user["balance"] -= 100
+    user["games"] += 1
+    
+    symbols = ["🍒", "🍋", "7️⃣"]
+    result = [random.choice(symbols) for _ in range(3)]
+    
+    if result[0] == result[1] == result[2]:
+        win = 500
+        text = "🎰 ДЖЕКПОТ!"
+        user["wins"] += 1
+    elif result[0] == result[1]:
+        win = 200
+        text = "🎉 ВЫИГРЫШ!"
+        user["wins"] += 1
+    else:
+        win = 0
+        text = "😢 ПРОИГРЫШ"
+    
+    if win > 0:
+        user["balance"] += win
+    
+    msg = f"""
+{' | '.join(result)}
+
+{text}
+
+Выигрыш: {win}₿
+Баланс: {user['balance']}₿
+"""
+    
+    keyboard = [[InlineKeyboardButton("🎰 КРУТИТЬ ЕЩЕ", callback_data="spin")]]
+    await query.message.edit_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+
+def main():
+    print("🤖 Бот запускается...")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(spin))
+    print("✅ Бот запущен!")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
